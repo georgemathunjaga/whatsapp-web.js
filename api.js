@@ -79,7 +79,13 @@ app.get('/connect', async (req, res) => {
 
     try {
         const qrDataUrl = await QRCode.toDataURL(lastQr);
-        res.json({ ready: false, qr: lastQr, qrImage: qrDataUrl });
+        const qrBase64 = qrDataUrl.split(',')[1];
+        res.json({
+            ready: false,
+            qr: lastQr,
+            qrImage: qrDataUrl,
+            qrBase64: qrBase64,
+        });
     } catch {
         res.status(500).json({ error: 'Failed to generate QR image' });
     }
