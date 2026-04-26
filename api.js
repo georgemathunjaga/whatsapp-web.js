@@ -13,7 +13,16 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+        ],
     },
 });
 
@@ -46,7 +55,7 @@ client.on('disconnected', (reason) => {
     client.initialize();
 });
 
-client.initialize();
+// client.initialize(); // Moved to app.listen below
 
 // API Endpoints
 
@@ -181,5 +190,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => {
-    console.log(`WhatsApp API Server running at http://localhost:${port}`);
+    console.log(`✅ WhatsApp API Server running at http://localhost:${port}`);
+    console.log('⏳ Initializing WhatsApp client...');
+    client.initialize().catch((err) => {
+        console.error('❌ Failed to initialize WhatsApp client:', err);
+    });
 });
