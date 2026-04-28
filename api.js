@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, LocalAuth } = require('./index');
 const express = require('express');
 const qrcodeTerminal = require('qrcode-terminal');
@@ -6,8 +7,48 @@ const bodyParser = require('body-parser');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const WEBHOOK_URL = process.env.WEBHOOK_URL || null;
 
 app.use(bodyParser.json());
+
+// Helper function to beam out message to webhook
+async function beamToWebhook(payload) {
+    if (!WEBHOOK_URL) return;
+
+    try {
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            console.error(`Webhook failed with status: ${response.status}`);
+        } else {
+            console.log('Message beamed out to webhook successfully');
+        }
+    } catch (error) {
+        console.error('Error beaming out message to webhook:', error.message);
+    }
+}
+
+// Message listener for webhook
+client.on('message', async (msg) => {
+    console.log(`New message from ${msg.from}: ${msg.body}`);
+
+    await beamToWebhook({
+        id: msg.id._serialized,
+        body: msg.body,
+        from: msg.from,
+        to: msg.to,
+        timestamp: msg.timestamp,
+        type: msg.type,
+        hasMedia: msg.hasMedia,
+        fromMe: msg.fromMe,
+        source: 'incoming',
+    });
+});
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -111,7 +152,21 @@ app.post('/send-message', async (req, res) => {
             ? sanitized_number
             : `${sanitized_number}@c.us`;
 
-        await client.sendMessage(final_number, message);
+        const sentMsg = await client.sendMessage(final_number, message);
+
+        // Beam to webhook after successful send
+        await beamToWebhook({
+            id: sentMsg.id._serialized,
+            body: sentMsg.body,
+            from: sentMsg.from,
+            to: sentMsg.to,
+            timestamp: sentMsg.timestamp,
+            type: sentMsg.type,
+            hasMedia: sentMsg.hasMedia,
+            fromMe: sentMsg.fromMe,
+            source: 'outgoing',
+        });
+
         res.json({ success: true, message: 'Message sent successfully' });
     } catch (error) {
         console.error('Error sending message:', error);
