@@ -35,6 +35,12 @@ async function beamToWebhook(payload) {
 
 const client = new Client({
     authStrategy: new LocalAuth(),
+    webVersion: '2.3000.1037662086',
+    webVersionCache: {
+        type: 'remote',
+        remotePath:
+            'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1037662086.html',
+    },
     puppeteer: {
         headless: true,
         args: [
@@ -44,7 +50,6 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
             '--disable-gpu',
         ],
     },
@@ -53,10 +58,13 @@ const client = new Client({
 let isReady = false;
 let lastQr = null;
 
-// Message listener for webhook
+// Message listener for webhook and simple booking bot
 client.on('message', async (msg) => {
+    if (msg.from === 'status@broadcast') return; // Ignore status updates
+
     console.log(`New message from ${msg.from}: ${msg.body}`);
 
+    // Beam out to webhook
     await beamToWebhook({
         id: msg.id._serialized,
         body: msg.body,
@@ -68,6 +76,22 @@ client.on('message', async (msg) => {
         fromMe: msg.fromMe,
         source: 'incoming',
     });
+
+    // Simple Booking Bot Logic
+    const body = msg.body.toLowerCase();
+    if (
+        body.includes('book') ||
+        body.includes('appointment') ||
+        body.includes('schedule')
+    ) {
+        await msg.reply(
+            'Thank you for reaching out to us! 🌸 To book your appointment, please reply with your preferred *Date*, *Time*, and the *Service* you are interested in (e.g., Haircut, Color, Manicure). Our team will confirm it for you shortly!',
+        );
+    } else if (body === 'hi' || body === 'hello') {
+        await msg.reply(
+            'Hello! Welcome to our salon. How can we help you today? You can ask about our services or say "book" to start an appointment request.',
+        );
+    }
 });
 
 client.on('qr', (qr) => {
@@ -146,13 +170,27 @@ app.post('/send-message', async (req, res) => {
     }
 
     try {
-        // Format number to WhatsApp ID (e.g. 254712345678@c.us)
-        const sanitized_number = number.toString().replace(/[- )(]/g, '');
-        const final_number = sanitized_number.includes('@c.us')
+        // Clean the number: remove all non-numeric characters except for @ and .
+        let sanitized_number = number.toString().replace(/[^\d@.]/g, '');
+
+        // If it doesn't have a domain, assume it's a contact number
+        const final_number = sanitized_number.includes('@')
             ? sanitized_number
             : `${sanitized_number}@c.us`;
 
-        const sentMsg = await client.sendMessage(final_number, message);
+        console.log(`Attempting to send message to: ${final_number}`);
+
+        // Verify if the number is registered on WhatsApp
+        const numberId = await client.getNumberId(final_number);
+        if (!numberId) {
+            return res.status(404).json({
+                success: false,
+                error: 'Number not registered on WhatsApp',
+                details: `The number ${final_number} could not be found.`,
+            });
+        }
+
+        const sentMsg = await client.sendMessage(numberId._serialized, message);
 
         // Beam to webhook after successful send
         await beamToWebhook({
@@ -167,12 +205,16 @@ app.post('/send-message', async (req, res) => {
             source: 'outgoing',
         });
 
-        res.json({ success: true, message: 'Message sent successfully' });
+        res.json({
+            success: true,
+            message: 'Message sent successfully',
+            messageId: sentMsg.id._serialized,
+        });
     } catch (error) {
         console.error('Error sending message:', error);
         res.status(500).json({
             error: 'Failed to send message',
-            details: error.message,
+            details: error.message || error,
         });
     }
 });
