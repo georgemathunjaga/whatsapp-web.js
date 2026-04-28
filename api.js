@@ -33,23 +33,6 @@ async function beamToWebhook(payload) {
     }
 }
 
-// Message listener for webhook
-client.on('message', async (msg) => {
-    console.log(`New message from ${msg.from}: ${msg.body}`);
-
-    await beamToWebhook({
-        id: msg.id._serialized,
-        body: msg.body,
-        from: msg.from,
-        to: msg.to,
-        timestamp: msg.timestamp,
-        type: msg.type,
-        hasMedia: msg.hasMedia,
-        fromMe: msg.fromMe,
-        source: 'incoming',
-    });
-});
-
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -69,6 +52,23 @@ const client = new Client({
 
 let isReady = false;
 let lastQr = null;
+
+// Message listener for webhook
+client.on('message', async (msg) => {
+    console.log(`New message from ${msg.from}: ${msg.body}`);
+
+    await beamToWebhook({
+        id: msg.id._serialized,
+        body: msg.body,
+        from: msg.from,
+        to: msg.to,
+        timestamp: msg.timestamp,
+        type: msg.type,
+        hasMedia: msg.hasMedia,
+        fromMe: msg.fromMe,
+        source: 'incoming',
+    });
+});
 
 client.on('qr', (qr) => {
     console.log('QR RECEIVED, SCAN WITH WHATSAPP:');
