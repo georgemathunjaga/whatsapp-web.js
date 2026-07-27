@@ -920,9 +920,10 @@ exports.LoadUtils = () => {
     window.WWebJS.getChats = async () => {
         const chats = window.require('WAWebCollections').Chat.getModelsArray();
         const chatPromises = chats.map((chat) =>
-            window.WWebJS.getChatModel(chat),
+            window.WWebJS.getChatModel(chat).catch(() => null),
         );
-        return await Promise.all(chatPromises);
+        const results = await Promise.all(chatPromises);
+        return results.filter((chat) => chat !== null);
     };
 
     window.WWebJS.getChannels = async () => {
@@ -930,9 +931,12 @@ exports.LoadUtils = () => {
             .require('WAWebCollections')
             .WAWebNewsletterCollection.getModelsArray();
         const channelPromises = channels?.map((channel) =>
-            window.WWebJS.getChatModel(channel, { isChannel: true }),
+            window.WWebJS.getChatModel(channel, { isChannel: true }).catch(
+                () => null,
+            ),
         );
-        return await Promise.all(channelPromises);
+        const results = await Promise.all(channelPromises ?? []);
+        return results.filter((channel) => channel !== null);
     };
 
     window.WWebJS.getChatModel = async (chat, { isChannel = false } = {}) => {
