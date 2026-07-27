@@ -985,7 +985,7 @@ exports.LoadUtils = () => {
 
         model.lastMessage = null;
         if (model.msgs && model.msgs.length) {
-            const lastMessage = chat.lastReceivedKey
+            const lastMessage = chat.lastReceivedKey?._serialized
                 ? window
                       .require('WAWebCollections')
                       .Msg.get(chat.lastReceivedKey._serialized) ||
