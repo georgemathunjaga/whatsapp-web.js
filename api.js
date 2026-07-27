@@ -1,15 +1,36 @@
 require('dotenv').config();
 const { Client, LocalAuth } = require('./index');
 const express = require('express');
+const http = require('http');
+const { WebSocketServer } = require('ws');
 const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const bodyParser = require('body-parser');
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
 const port = process.env.PORT || 3000;
 const WEBHOOK_URL = process.env.WEBHOOK_URL || null;
 
 app.use(bodyParser.json());
+
+// Broadcast a JSON payload to every connected WebSocket client
+function broadcast(payload) {
+    const data = JSON.stringify(payload);
+    wss.clients.forEach((ws) => {
+        if (ws.readyState === ws.OPEN) {
+            ws.send(data);
+        }
+    });
+}
+
+wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    ws.send(JSON.stringify({ event: 'connected', ready: isReady }));
+
+    ws.on('close', () => console.log('WebSocket client disconnected'));
+});
 
 // Helper function to beam out message to webhook
 async function beamToWebhook(payload) {
@@ -64,8 +85,7 @@ client.on('message', async (msg) => {
 
     console.log(`New message from ${msg.from}: ${msg.body}`);
 
-    // Beam out to webhook
-    await beamToWebhook({
+    const payload = {
         id: msg.id._serialized,
         body: msg.body,
         from: msg.from,
@@ -75,7 +95,13 @@ client.on('message', async (msg) => {
         hasMedia: msg.hasMedia,
         fromMe: msg.fromMe,
         source: 'incoming',
-    });
+    };
+
+    // Notify WebSocket clients in real time
+    broadcast({ event: 'message', message: payload });
+
+    // Beam out to webhook
+    await beamToWebhook(payload);
 
     // Simple Booking Bot Logic
     const body = msg.body.toLowerCase();
@@ -293,7 +319,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
     console.log(`✅ WhatsApp API Server running at http://localhost:${port}`);
     console.log('⏳ Initializing WhatsApp client...');
     client.initialize().catch((err) => {
