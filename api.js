@@ -241,9 +241,13 @@ app.get('/messages', async (req, res) => {
         } else {
             // Fetch recent messages from all chats (this can be slow)
             const chats = await client.getChats();
-            const messagePromises = chats
-                .slice(0, 5)
-                .map((chat) => chat.fetchMessages({ limit: 5 }));
+            const recentChats = chats
+                .filter((chat) => chat.lastMessage)
+                .sort((a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp)
+                .slice(0, 5);
+            const messagePromises = recentChats.map((chat) =>
+                chat.fetchMessages({ limit: 5 }),
+            );
             const nestedMessages = await Promise.all(messagePromises);
             messages = nestedMessages
                 .flat()
