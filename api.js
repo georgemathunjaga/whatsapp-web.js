@@ -182,6 +182,24 @@ app.get('/connect', async (req, res) => {
     }
 });
 
+app.get('/resolve-number', async (req, res) => {
+    const { id } = req.query;
+
+    if (!isReady) {
+        return res.status(503).json({ error: 'Client is not ready' });
+    }
+    if (!id) {
+        return res.status(400).json({ error: 'id query param is required' });
+    }
+
+    try {
+        const [result] = await client.getContactLidAndPhone([id.toString()]);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to resolve number' });
+    }
+});
+
 app.post('/send-message', async (req, res) => {
     const { number, message } = req.body;
 
