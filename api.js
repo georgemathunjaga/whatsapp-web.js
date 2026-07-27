@@ -239,14 +239,11 @@ app.get('/messages', async (req, res) => {
             const chat = await client.getChatById(final_number);
             messages = await chat.fetchMessages({ limit: parseInt(limit) });
         } else {
-            // Fetch recent messages from all chats (this can be slow)
+            // Fetch all unread messages across chats
             const chats = await client.getChats();
-            const recentChats = chats
-                .filter((chat) => chat.lastMessage)
-                .sort((a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp)
-                .slice(0, 5);
-            const messagePromises = recentChats.map((chat) =>
-                chat.fetchMessages({ limit: 5 }),
+            const unreadChats = chats.filter((chat) => chat.unreadCount > 0);
+            const messagePromises = unreadChats.map((chat) =>
+                chat.fetchMessages({ limit: chat.unreadCount }),
             );
             const nestedMessages = await Promise.all(messagePromises);
             messages = nestedMessages
